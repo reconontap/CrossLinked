@@ -8,6 +8,7 @@ from csv import reader
 from crosslinked import utils
 from crosslinked.logger import *
 from crosslinked.search import CrossLinked
+from crosslinked.proxy import build_pool
 
 
 def banner():
@@ -45,6 +46,9 @@ def cli():
     pr = p.add_mutually_exclusive_group(required=False)
     pr.add_argument('--proxy', dest='proxy', action='append', default=[], help='Proxy requests (IP:Port)')
     pr.add_argument('--proxy-file', dest='proxy', default=False, type=lambda x: utils.file_exists(x), help='Load proxies from file for rotation')
+    p.add_argument('--free-proxies', dest='free_proxies', action='store_true', help='Auto-fetch & validate free proxies for rotation')
+    p.add_argument('--proxy-count', dest='proxy_count', type=int, default=30, help='Max validated free proxies to keep (Default=30)')
+    p.add_argument('--refresh-proxies', dest='refresh_proxies', action='store_true', help='Force refetch of free proxies (ignore cache)')
     return args.parse_args()
 
 
@@ -116,6 +120,14 @@ def main():
         if args.debug: setup_debug_logger(); debug_args(args)                                  # Setup Debug logging
         txt = setup_file_logger(args.outfile+".txt", log_name="cLinked_txt", file_mode='w')    # names.txt overwritten
         csv = setup_file_logger(args.outfile+".csv", log_name="cLinked_csv", file_mode='a')    # names.csv appended
+
+        if args.free_proxies:
+            pool = build_pool(limit=args.proxy_count, refresh=args.refresh_proxies)
+            if pool:
+                manual = args.proxy if isinstance(args.proxy, list) else []
+                args.proxy = manual + pool
+            else:
+                Log.warn('No working free proxies found; continuing without proxies')
 
         data = start_parse(args) if args.company_name.endswith('.csv') else start_scrape(args)
         format_names(args, data, txt) if len(data) > 0 else Log.warn('No results found')
