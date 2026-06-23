@@ -37,3 +37,29 @@ def test_validate_false_on_exception(monkeypatch):
         raise Exception('no route to host')
     monkeypatch.setattr(P.requests, 'get', boom)
     assert P.validate('1.1.1.1:80') is False
+
+
+def test_build_pool_keeps_only_validated(monkeypatch, tmp_path):
+    monkeypatch.setattr(P, 'CACHE_DIR', str(tmp_path))
+    monkeypatch.setattr(P, 'CACHE_FILE', str(tmp_path / 'p.txt'))
+    monkeypatch.setattr(P, 'fetch_candidates', lambda: {'1.1.1.1:80', '2.2.2.2:80', '3.3.3.3:80'})
+    good = {'1.1.1.1:80', '3.3.3.3:80'}
+    monkeypatch.setattr(P, 'validate', lambda p, timeout=5, test_url=P.IP_ECHO: p in good)
+    pool = P.build_pool(limit=10, refresh=True)
+    assert set(pool) == good
+
+
+def test_build_pool_reuses_fresh_cache(monkeypatch, tmp_path):
+    cache = tmp_path / 'p.txt'
+    cache.write_text('# crosslinked validated proxies\n9.9.9.9:80\n')
+    monkeypatch.setattr(P, 'CACHE_DIR', str(tmp_path))
+    monkeypatch.setattr(P, 'CACHE_FILE', str(cache))
+    monkeypatch.setattr(P, 'CACHE_TTL', 9999)
+    fetched = {'flag': False}
+    def boom():
+        fetched['flag'] = True
+        return set()
+    monkeypatch.setattr(P, 'fetch_candidates', boom)
+    pool = P.build_pool(limit=10, refresh=False)
+    assert pool == ['9.9.9.9:80']
+    assert fetched['flag'] is False

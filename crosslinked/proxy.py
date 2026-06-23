@@ -49,3 +49,54 @@ def validate(proxy, timeout=5, test_url=IP_ECHO):
         return r.status_code == 200
     except Exception:
         return False
+
+
+def _load_cache():
+    try:
+        if not os.path.exists(CACHE_FILE):
+            return None
+        if (time.time() - os.path.getmtime(CACHE_FILE)) > CACHE_TTL:
+            return None
+        with open(CACHE_FILE) as f:
+            lines = [l.strip() for l in f if l.strip() and not l.startswith('#')]
+        return lines or None
+    except Exception:
+        return None
+
+
+def _save_cache(proxies):
+    try:
+        os.makedirs(CACHE_DIR, exist_ok=True)
+        with open(CACHE_FILE, 'w') as f:
+            f.write('# crosslinked validated proxies\n')
+            for p in proxies:
+                f.write(p + '\n')
+    except Exception as e:
+        Log.warn('Could not cache proxies: {}'.format(e))
+
+
+def build_pool(limit=30, timeout=5, threads=50, refresh=False):
+    if not refresh:
+        cached = _load_cache()
+        if cached is not None:
+            Log.info('Loaded {} cached proxies'.format(len(cached)))
+            return cached[:limit]
+
+    candidates = fetch_candidates()
+    Log.info('Validating {} candidate proxies (this can take a moment)...'.format(len(candidates)))
+    working = []
+    with ThreadPoolExecutor(max_workers=threads) as ex:
+        futures = {ex.submit(validate, p, timeout): p for p in candidates}
+        for fut in as_completed(futures):
+            try:
+                if fut.result():
+                    working.append(futures[fut])
+                    if len(working) >= limit:
+                        break
+            except Exception:
+                pass
+        for f in futures:
+            f.cancel()
+    Log.success('{} working proxies ready'.format(len(working)))
+    _save_cache(working)
+    return working
