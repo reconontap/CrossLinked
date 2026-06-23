@@ -19,7 +19,7 @@ class Timer(threading.Thread):
     def __init__(self, timeout):
         threading.Thread.__init__(self)
         self.start_time = None
-        self.running = None
+        self.running = True
         self.timeout = timeout
 
     def run(self):
@@ -63,18 +63,25 @@ class CrossLinked:
         page = 0
         while search_timer.running:
             try:
-                resp = self.get_page(page)
+                proxy = choice(self.proxies) if self.proxies else None
+                resp = self.get_page(page, proxy)
                 http_code = get_statuscode(resp)
 
                 if http_code != 200:
                     Log.info("{:<3} {} ({})".format(len(self.results), self.search_engine, http_code))
+                    if proxy:
+                        self.drop_proxy(proxy)
+                        Log.warn('Proxy blocked ({}), {} proxies left'.format(http_code, len(self.proxies)))
+                        if not self.proxies:
+                            Log.warn('Proxy pool exhausted, exiting search')
+                            break
+                        continue
                     Log.warn('Non-200 response, exiting search ({}) - rate-limited or blocked'.format(http_code))
                     break
 
                 found = self.page_parser(resp)
                 Log.info("{:<3} {} (200) page {}".format(len(self.results), self.search_engine, page))
 
-                # No new results this page = end of results (or a soft block). Stop paging.
                 if found == 0:
                     break
 
@@ -87,20 +94,23 @@ class CrossLinked:
         search_timer.stop()
         return self.results
 
-    def get_page(self, page):
-        # Build the per-engine request. DuckDuckGo's HTML endpoint expects a POST form;
-        # the rest paginate via a GET offset parameter.
+    def drop_proxy(self, proxy):
+        try:
+            self.proxies.remove(proxy)
+        except ValueError:
+            pass
+
+    def get_page(self, page, proxy=None):
+        plist = [proxy] if proxy else []
         if self.search_engine == 'duckduckgo':
             data = {'q': 'site:linkedin.com/in "{}"'.format(self.target),
                     's': len(self.results), 'kl': 'us-en'}
-            return web_request(self.url['duckduckgo'], self.conn_timeout, self.proxies, method='POST', data=data)
+            return web_request(self.url['duckduckgo'], self.conn_timeout, plist, method='POST', data=data)
         elif self.search_engine == 'brave':
-            # Brave paginates by page index (offset=0,1,2...), not result count.
             url = self.url['brave'].format(self.target, page)
-            return web_request(url, self.conn_timeout, self.proxies)
-        # google / bing (legacy) paginate by result-count offset.
+            return web_request(url, self.conn_timeout, plist)
         url = self.url[self.search_engine].format(self.target, len(self.results))
-        return web_request(url, self.conn_timeout, self.proxies)
+        return web_request(url, self.conn_timeout, plist)
 
     def page_parser(self, resp):
         # Returns the number of NEW results captured from this page.
