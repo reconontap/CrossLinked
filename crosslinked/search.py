@@ -75,6 +75,7 @@ class CrossLinked:
                         if not self.proxies:
                             Log.warn('Proxy pool exhausted, exiting search')
                             break
+                        sleep(self.jitter)
                         continue
                     Log.warn('Non-200 response, exiting search ({}) - rate-limited or blocked'.format(http_code))
                     break
@@ -101,14 +102,18 @@ class CrossLinked:
             pass
 
     def get_page(self, page, proxy=None):
+        # Build the per-engine request. DuckDuckGo's HTML endpoint expects a POST form;
+        # the rest paginate via a GET offset parameter.
         plist = [proxy] if proxy else []
         if self.search_engine == 'duckduckgo':
             data = {'q': 'site:linkedin.com/in "{}"'.format(self.target),
                     's': len(self.results), 'kl': 'us-en'}
             return web_request(self.url['duckduckgo'], self.conn_timeout, plist, method='POST', data=data)
         elif self.search_engine == 'brave':
+            # Brave paginates by page index (offset=0,1,2...), not result count.
             url = self.url['brave'].format(self.target, page)
             return web_request(url, self.conn_timeout, plist)
+        # google / bing (legacy) paginate by result-count offset.
         url = self.url[self.search_engine].format(self.target, len(self.results))
         return web_request(url, self.conn_timeout, plist)
 
