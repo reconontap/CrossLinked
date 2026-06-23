@@ -23,3 +23,17 @@ def test_fetch_candidates_skips_dead_source(monkeypatch):
         raise Exception('source down')
     monkeypatch.setattr(P.requests, 'get', boom)
     assert P.fetch_candidates(sources=['http://dead']) == set()
+
+
+def test_validate_true_on_200(monkeypatch):
+    class Resp:
+        status_code = 200
+    monkeypatch.setattr(P.requests, 'get', lambda url, proxies=None, timeout=5: Resp())
+    assert P.validate('1.1.1.1:80') is True
+
+
+def test_validate_false_on_exception(monkeypatch):
+    def boom(url, proxies=None, timeout=5):
+        raise Exception('no route to host')
+    monkeypatch.setattr(P.requests, 'get', boom)
+    assert P.validate('1.1.1.1:80') is False

@@ -40,3 +40,12 @@ def fetch_candidates(sources=PROXY_SOURCES, timeout=15):
         except Exception as e:
             Log.warn('Proxy source failed: {} ({})'.format(url, e))
     return proxies
+
+
+def validate(proxy, timeout=5, test_url=IP_ECHO):
+    scheme = _scheme(proxy)
+    try:
+        r = requests.get(test_url, proxies={'http': scheme, 'https': scheme}, timeout=timeout)
+        return r.status_code == 200
+    except Exception:
+        return False
