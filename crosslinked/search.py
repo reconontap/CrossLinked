@@ -61,6 +61,7 @@ class CrossLinked:
         search_timer.start()
 
         page = 0
+        empties = 0
         while search_timer.running:
             try:
                 proxy = choice(self.proxies) if self.proxies else None
@@ -84,8 +85,20 @@ class CrossLinked:
                 Log.info("{:<3} {} (200) page {}".format(len(self.results), self.search_engine, page))
 
                 if found == 0:
+                    # A 200 with no new results may be genuine end-of-results OR a soft
+                    # block/interstitial that looks identical. With proxies remaining, retry
+                    # the same page on a fresh IP up to 2 consecutive times before giving up.
+                    empties += 1
+                    if proxy and self.proxies and empties < 2:
+                        self.drop_proxy(proxy)
+                        Log.warn('No new results, retrying via another proxy ({} left)'.format(len(self.proxies)))
+                        if not self.proxies:
+                            break
+                        sleep(self.jitter)
+                        continue
                     break
 
+                empties = 0
                 page += 1
                 sleep(self.jitter)
             except KeyboardInterrupt:

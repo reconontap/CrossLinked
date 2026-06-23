@@ -19,8 +19,8 @@ def test_blocked_proxy_dropped_and_search_continues(monkeypatch):
 
     monkeypatch.setattr(c, 'get_page', fake_get_page)
     c.search()
-    assert len(calls) == 2            # retried after the block instead of stopping
-    assert len(c.proxies) == 1        # exactly one proxy dropped
+    assert len(calls) == 2            # 429 -> dropped+continued (not stopped)
+    assert len(c.proxies) == 0        # 429 dropped one; the empty 200 retry dropped the last
 
 
 def test_no_proxies_stops_on_non_200(monkeypatch):
@@ -47,3 +47,33 @@ def test_proxies_isolated_per_engine_instance():
     assert len(a.proxies) == 1
     assert len(b.proxies) == 3
     assert len(shared) == 3
+
+
+def test_empty_pages_retry_then_stop_with_proxies(monkeypatch):
+    c = CrossLinked('brave', 'Acme', timeout=5, proxies=['p1', 'p2', 'p3', 'p4'])
+    seq = [FakeResp(200), FakeResp(200), FakeResp(200)]   # all empty pages
+    calls = []
+
+    def fake_get_page(page, proxy=None):
+        calls.append(proxy)
+        return seq.pop(0)
+
+    monkeypatch.setattr(c, 'get_page', fake_get_page)
+    c.search()
+    # first empty -> drop one proxy and retry; second empty -> stop (2 consecutive)
+    assert len(calls) == 2
+    assert len(c.proxies) == 3
+
+
+def test_empty_page_no_proxies_stops_immediately(monkeypatch):
+    c = CrossLinked('brave', 'Acme', timeout=5, proxies=[])
+    seq = [FakeResp(200)]
+    calls = []
+
+    def fake_get_page(page, proxy=None):
+        calls.append(proxy)
+        return seq.pop(0)
+
+    monkeypatch.setattr(c, 'get_page', fake_get_page)
+    c.search()
+    assert len(calls) == 1            # no proxies -> first empty page stops the engine
