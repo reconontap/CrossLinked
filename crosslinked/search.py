@@ -52,7 +52,7 @@ class CrossLinked:
         self.search_engine = search_engine
         self.conn_timeout = conn_timeout
         self.timeout = timeout
-        self.proxies = proxies
+        self.proxies = list(proxies)
         self.target = target
         self.jitter = jitter
 

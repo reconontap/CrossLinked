@@ -121,7 +121,7 @@ def main():
         txt = setup_file_logger(args.outfile+".txt", log_name="cLinked_txt", file_mode='w')    # names.txt overwritten
         csv = setup_file_logger(args.outfile+".csv", log_name="cLinked_csv", file_mode='a')    # names.csv appended
 
-        if args.free_proxies:
+        if args.free_proxies and not args.company_name.endswith('.csv'):
             pool = build_pool(limit=args.proxy_count, refresh=args.refresh_proxies)
             if pool:
                 manual = args.proxy if isinstance(args.proxy, list) else []

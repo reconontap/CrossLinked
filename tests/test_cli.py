@@ -20,3 +20,13 @@ def test_free_proxy_defaults(monkeypatch):
     args = cli()
     assert args.free_proxies is False
     assert args.proxy_count == 30
+
+
+def test_free_proxies_combinable_with_proxy(monkeypatch):
+    monkeypatch.setattr(sys, 'argv', [
+        'crosslinked', '-f', '{first}.{last}@x.com',
+        '--proxy', '9.9.9.9:80', '--free-proxies', 'Acme',
+    ])
+    args = cli()
+    assert args.proxy == ['9.9.9.9:80']
+    assert args.free_proxies is True

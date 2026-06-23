@@ -34,3 +34,16 @@ def test_no_proxies_stops_on_non_200(monkeypatch):
     monkeypatch.setattr(c, 'get_page', fake_get_page)
     c.search()
     assert len(calls) == 1            # no pool -> stop immediately on non-200
+
+
+def test_proxies_isolated_per_engine_instance():
+    # A shared pool passed to two engines must not be drained across them:
+    # each CrossLinked gets its own copy, and the caller's list is untouched.
+    shared = ['1.1.1.1:80', '2.2.2.2:80', '3.3.3.3:80']
+    a = CrossLinked('duckduckgo', 'Acme', timeout=5, proxies=shared)
+    b = CrossLinked('brave', 'Acme', timeout=5, proxies=shared)
+    a.drop_proxy('1.1.1.1:80')
+    a.drop_proxy('2.2.2.2:80')
+    assert len(a.proxies) == 1
+    assert len(b.proxies) == 3
+    assert len(shared) == 3
