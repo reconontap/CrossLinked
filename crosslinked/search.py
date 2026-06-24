@@ -196,8 +196,8 @@ class CrossLinked:
             return False
         elif 'linkedin.com/in' not in url:
             return False
-        elif any(x in url for x in ('/login', '/authwall', 'session_redirect', 'fromsignin')):
-            # Skip auth/login links that carry a profile URL inside a redirect parameter
+        elif any(x in url for x in ('/login', '/authwall', 'session_redirect', 'fromsignin', '#:~:text=')):
+            # Skip auth/login links and Google "Read more" text-fragment (#:~:text=) snippet links
             return False
 
         data = self.link_parser(url, text)

@@ -77,3 +77,12 @@ def test_empty_page_no_proxies_stops_immediately(monkeypatch):
     monkeypatch.setattr(c, 'get_page', fake_get_page)
     c.search()
     assert len(calls) == 1            # no proxies -> first empty page stops the engine
+
+
+def test_text_fragment_links_are_filtered():
+    c = CrossLinked('google', 'Acme', timeout=5)
+    # Google "Read more" text-fragment (#:~:text=) snippet link must be skipped
+    assert c.results_handler('https://hu.linkedin.com/in/jdoe#:~:text=read%20more', 'Read more') is False
+    assert c.results == []
+    # a normal profile link is still accepted (True on first sighting)
+    assert c.results_handler('https://www.linkedin.com/in/jdoe', 'John Doe - Engineer at Acme') is True
