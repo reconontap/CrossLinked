@@ -60,6 +60,7 @@ def start_scrape(args):
     for search_engine in args.engine:
         if search_engine == 'google':
             try:
+                import playwright.sync_api  # noqa: F401 - ensures the optional browser extra is installed
                 from crosslinked.browser import BrowserSearch
             except ImportError:
                 Log.fail("google engine needs the browser extra: pip install crosslinked[browser] && playwright install chromium")

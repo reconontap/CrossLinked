@@ -55,3 +55,29 @@ def test_google_routes_to_browser_search(monkeypatch):
         proxy = []; headless = False
     out = cl.start_scrape(A())
     assert out == [{'name': 'jane doe', 'title': 'x', 'url': 'u', 'text': 't'}]
+
+
+def test_google_missing_playwright_skips_browser(monkeypatch):
+    import crosslinked as cl
+    # Simulate playwright NOT installed: a None entry in sys.modules makes `import playwright...` raise ImportError.
+    monkeypatch.setitem(sys.modules, 'playwright', None)
+    monkeypatch.setitem(sys.modules, 'playwright.sync_api', None)
+
+    called = {'instantiated': False}
+
+    class FakeBrowser:
+        def __init__(self, *a, **k):
+            called['instantiated'] = True
+
+        def search(self):
+            return [{'name': 'x', 'title': 't', 'url': 'u', 'text': 'r'}]
+
+    monkeypatch.setattr('crosslinked.browser.BrowserSearch', FakeBrowser, raising=False)
+
+    class A:
+        engine = ['google']; company_name = 'Acme'; timeout = 15; jitter = 1
+        proxy = []; headless = False
+
+    out = cl.start_scrape(A())
+    assert called['instantiated'] is False   # guard fired BEFORE the engine was constructed
+    assert out == []                         # google engine skipped gracefully, no crash
