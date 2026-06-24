@@ -30,3 +30,28 @@ def test_free_proxies_combinable_with_proxy(monkeypatch):
     args = cli()
     assert args.proxy == ['9.9.9.9:80']
     assert args.free_proxies is True
+
+
+def test_headless_flag_parses(monkeypatch):
+    monkeypatch.setattr(sys, 'argv', ['crosslinked', '-f', '{first}.{last}@x.com', '--headless', '--search', 'google', 'Acme'])
+    args = cli()
+    assert args.headless is True
+    assert args.engine == ['google']
+
+
+def test_google_routes_to_browser_search(monkeypatch):
+    import crosslinked as cl
+
+    class FakeBrowser:
+        def __init__(self, *a, **k):
+            self.args = a
+        def search(self):
+            return [{'name': 'jane doe', 'title': 'x', 'url': 'u', 'text': 't'}]
+
+    monkeypatch.setattr('crosslinked.browser.BrowserSearch', FakeBrowser)
+
+    class A:
+        engine = ['google']; company_name = 'Acme'; timeout = 15; jitter = 1
+        proxy = []; headless = False
+    out = cl.start_scrape(A())
+    assert out == [{'name': 'jane doe', 'title': 'x', 'url': 'u', 'text': 't'}]

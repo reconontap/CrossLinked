@@ -26,6 +26,7 @@ setup(
         'Unidecode',
         'urllib3'
     ],
+    extras_require={'browser': ['playwright']},
     classifiers=[
         "Environment :: Console",
         "Programming Language :: Python :: 3",

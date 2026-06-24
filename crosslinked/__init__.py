@@ -37,6 +37,7 @@ def cli():
 
     s = args.add_argument_group("Search arguments")
     s.add_argument('--search', dest='engine', default='duckduckgo,brave', type=lambda x: utils.delimiter2list(x), help='Search Engine: duckduckgo,brave,bing,google (Default=\'duckduckgo,brave\')')
+    s.add_argument('--headless', dest='headless', action='store_true', help='Run the google browser engine headless (cannot solve challenges)')
 
     o = args.add_argument_group("Output arguments")
     o.add_argument('-f', dest='nformat', type=str, required=True, help=r"Format names, ex: 'domain\{f}{last}', '{first}.{last}@domain.com'")
@@ -57,7 +58,16 @@ def start_scrape(args):
     Log.info("Searching {} for valid employee names at \"{}\"".format(', '.join(args.engine), args.company_name))
 
     for search_engine in args.engine:
-        c = CrossLinked(search_engine,  args.company_name, args.timeout, 3, args.proxy, args.jitter)
+        if search_engine == 'google':
+            try:
+                from crosslinked.browser import BrowserSearch
+            except ImportError:
+                Log.fail("google engine needs the browser extra: pip install crosslinked[browser] && playwright install chromium")
+                continue
+            bs = BrowserSearch(args.company_name, args.timeout, args.jitter, headless=getattr(args, 'headless', False))
+            tmp += bs.search()
+            continue
+        c = CrossLinked(search_engine, args.company_name, args.timeout, 3, args.proxy, args.jitter)
         if search_engine in c.url.keys():
             tmp += c.search()
     return tmp
