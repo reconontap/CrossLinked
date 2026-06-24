@@ -4,6 +4,10 @@ from bs4 import BeautifulSoup
 from crosslinked.logger import Log
 from crosslinked.search import CrossLinked
 
+class BrowserUnavailable(Exception):
+    """Raised when Chromium cannot be launched (e.g. the browser binary is not installed)."""
+
+
 CHALLENGE_MARKERS = ('unusual traffic', 'recaptcha', 'our systems have detected', 'id="captcha-form"')
 
 
@@ -54,6 +58,8 @@ class BrowserSearch:
                 if found == 0:
                     break
                 sleep(self.jitter)
+        except BrowserUnavailable as e:
+            Log.fail(str(e))
         except KeyboardInterrupt:
             Log.warn("Key event detected, exiting search...")
         except Exception as e:
@@ -97,7 +103,10 @@ class BrowserSearch:
                 user_agent='Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
             if os.path.exists('/usr/bin/chromium'):
                 launch_kwargs['executable_path'] = '/usr/bin/chromium'
-            self._ctx = self._pw.chromium.launch_persistent_context(self.profile_dir, **launch_kwargs)
+            try:
+                self._ctx = self._pw.chromium.launch_persistent_context(self.profile_dir, **launch_kwargs)
+            except Exception as e:
+                raise BrowserUnavailable('Could not launch Chromium: {}. Install it with: playwright install chromium'.format(e))
             self._page_obj = self._ctx.new_page()
         return self._page_obj
 

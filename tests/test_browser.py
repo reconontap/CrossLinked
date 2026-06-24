@@ -82,7 +82,41 @@ def test_browser_search_returns_partial_results_on_fetch_error(monkeypatch):
 
     monkeypatch.setattr(bs, '_fetch', fake_fetch)
     monkeypatch.setattr(bs, '_solve_challenge', lambda: None)
-    monkeypatch.setattr(bs, '_close', lambda: None)
+    closed = {'n': 0}
+    monkeypatch.setattr(bs, '_close', lambda: closed.__setitem__('n', closed['n'] + 1))
     results = bs.search()
     # page 0 collected results; page 1 raised -> caught -> partial results returned
     assert sorted(r['name'] for r in results) == ['alice smith', 'john doe']
+    assert closed['n'] == 1            # _close() ran on the error path (finally)
+
+
+def test_browser_search_challenge_persists_after_solve(monkeypatch):
+    challenge = ('https://www.google.com/sorry/index', SORRY_PAGE)
+    bs = BrowserSearch('Acme', timeout=5, jitter=0, max_pages=5)
+    calls = {'solve': 0}
+
+    def fake_fetch(i):
+        return challenge                      # still a challenge even after solving
+
+    def fake_solve():
+        calls['solve'] += 1
+
+    monkeypatch.setattr(bs, '_fetch', fake_fetch)
+    monkeypatch.setattr(bs, '_solve_challenge', fake_solve)
+    monkeypatch.setattr(bs, '_close', lambda: None)
+    out = bs.search()
+    assert calls['solve'] == 1                # solved once; post-solve page still a challenge -> stop, no loop
+    assert out == []
+
+
+def test_browser_search_browser_unavailable_is_friendly(monkeypatch):
+    from crosslinked.browser import BrowserUnavailable
+    bs = BrowserSearch('Acme', timeout=5, jitter=0, max_pages=5)
+
+    def boom(i):
+        raise BrowserUnavailable('Install it with: playwright install chromium')
+
+    monkeypatch.setattr(bs, '_fetch', boom)
+    monkeypatch.setattr(bs, '_close', lambda: None)
+    out = bs.search()
+    assert out == []                          # handled gracefully, no crash
