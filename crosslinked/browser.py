@@ -56,6 +56,8 @@ class BrowserSearch:
                 sleep(self.jitter)
         except KeyboardInterrupt:
             Log.warn("Key event detected, exiting search...")
+        except Exception as e:
+            Log.warn('Browser engine error, returning collected results: {}'.format(e))
         finally:
             self._close()
         return self.parser.results
@@ -89,10 +91,13 @@ class BrowserSearch:
             from playwright.sync_api import sync_playwright
             self._pw = sync_playwright().start()
             os.makedirs(self.profile_dir, exist_ok=True)
-            self._ctx = self._pw.chromium.launch_persistent_context(
-                self.profile_dir, headless=self.headless, executable_path='/usr/bin/chromium',
+            launch_kwargs = dict(
+                headless=self.headless,
                 args=['--disable-blink-features=AutomationControlled'],
                 user_agent='Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
+            if os.path.exists('/usr/bin/chromium'):
+                launch_kwargs['executable_path'] = '/usr/bin/chromium'
+            self._ctx = self._pw.chromium.launch_persistent_context(self.profile_dir, **launch_kwargs)
             self._page_obj = self._ctx.new_page()
         return self._page_obj
 
@@ -100,6 +105,11 @@ class BrowserSearch:
         try:
             if self._ctx is not None:
                 self._ctx.close()
+        except Exception:
+            pass
+        try:
+            if getattr(self, '_pw', None) is not None:
                 self._pw.stop()
         except Exception:
             pass
+        self._ctx = None

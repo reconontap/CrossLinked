@@ -68,3 +68,21 @@ def test_browser_search_pauses_on_challenge_then_resumes(monkeypatch):
     results = bs.search()
     assert calls['solve'] == 1                       # paused exactly once
     assert sorted(r['name'] for r in results) == ['alice smith', 'john doe']
+
+
+def test_browser_search_returns_partial_results_on_fetch_error(monkeypatch):
+    bs = BrowserSearch('Acme', timeout=5, jitter=0, max_pages=5)
+    state = {'n': 0}
+
+    def fake_fetch(i):
+        if state['n'] == 0:
+            state['n'] += 1
+            return ('https://www.google.com/search?q=x', GOOGLE_RESULTS)
+        raise RuntimeError('playwright boom')
+
+    monkeypatch.setattr(bs, '_fetch', fake_fetch)
+    monkeypatch.setattr(bs, '_solve_challenge', lambda: None)
+    monkeypatch.setattr(bs, '_close', lambda: None)
+    results = bs.search()
+    # page 0 collected results; page 1 raised -> caught -> partial results returned
+    assert sorted(r['name'] for r in results) == ['alice smith', 'john doe']
